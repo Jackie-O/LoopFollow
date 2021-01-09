@@ -140,6 +140,8 @@ extension MainViewController {
             }
         }
         
+        if UserDefaultsRepository.alwaysDownloadAllBG.value { onlyPullLastRecord = false }
+        
         if UserDefaultsRepository.shareUserName.value != "" && UserDefaultsRepository.sharePassword.value != "" {
             webLoadDexShare(onlyPullLastRecord: onlyPullLastRecord)
         } else {
@@ -165,7 +167,7 @@ extension MainViewController {
     @objc func deviceStatusTimerDidEnd(_ timer:Timer) {
         
         // reset timer to 1 minute if settings aren't entered
-        if UserDefaultsRepository.url.value == "" {
+        if UserDefaultsRepository.url.value == "" || UserDefaultsRepository.onlyDownloadBG.value {
             startDeviceStatusTimer(time: 60)
             return
         }
@@ -188,8 +190,9 @@ extension MainViewController {
     
     @objc func treatmentsTimerDidEnd(_ timer:Timer) {
         
+        
         // reset timer to 1 minute if settings aren't entered
-        if UserDefaultsRepository.url.value == "" {
+        if UserDefaultsRepository.url.value == "" || UserDefaultsRepository.onlyDownloadBG.value {
             startTreatmentsTimer(time: 60)
             return
         }
@@ -214,7 +217,7 @@ extension MainViewController {
     @objc func profileTimerDidEnd(_ timer:Timer) {
         
         // reset timer to 1 minute if settings aren't entered
-        if UserDefaultsRepository.url.value == "" {
+        if UserDefaultsRepository.url.value == "" || UserDefaultsRepository.onlyDownloadBG.value {
             startProfileTimer(time: 60)
             return
         }
@@ -239,7 +242,7 @@ extension MainViewController {
     @objc func cageSageTimerDidEnd(_ timer:Timer) {
         
         // reset timer to 1 minute if settings aren't entered
-        if UserDefaultsRepository.url.value == "" {
+        if UserDefaultsRepository.url.value == "" || UserDefaultsRepository.onlyDownloadBG.value {
             startCageSageTimer(time: 60)
             return
         }

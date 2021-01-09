@@ -206,29 +206,25 @@ extension MainViewController {
             if secondsAgo >= (20 * 60) {
                 self.startBGTimer(time: (5 * 60))
                 print("##### started 5 minute bg timer")
-                self.sendNotification(title: "BG Timer", body: "5 Minutes")
                 
             // if the reading is overdue: 10:00-19:59, re-attempt every minute
             } else if secondsAgo >= (10 * 60) {
                 self.startBGTimer(time: 60)
                 print("##### started 1 minute bg timer")
-                self.sendNotification(title: "BG Timer", body: "1 Minute")
                 
             // if the reading is overdue: 7:00-9:59, re-attempt every 30 seconds
             } else if secondsAgo >= (7 * 60) {
                 self.startBGTimer(time: 30)
                 print("##### started 30 second bg timer")
-                self.sendNotification(title: "BG Timer", body: "30 Seconds")
                 
             // if the reading is overdue: 5:00-6:59 re-attempt every 10 seconds
             } else if secondsAgo >= (5 * 60) {
                 self.startBGTimer(time: 10)
                 print("##### started 10 second bg timer")
-                self.sendNotification(title: "BG Timer", body: "10 Seconds")
             
             // We have a current reading. Set timer to 5:10 from last reading
             } else {
-                self.startBGTimer(time: 310 - secondsAgo)
+                self.startBGTimer(time: 300 - secondsAgo + Double(UserDefaultsRepository.bgUpdateDelay.value))
                 let timerVal = 310 - secondsAgo
                 print("##### started 5:10 bg timer: \(timerVal)")
             }
@@ -269,66 +265,73 @@ extension MainViewController {
     // NS BG Data Front end updater
     func viewUpdateNSBG (isNS: Bool) {
         DispatchQueue.main.async {
-            if UserDefaultsRepository.debugLog.value { self.writeDebugLog(value: "Display: BG") }
-            guard let snoozer = self.tabBarController!.viewControllers?[2] as? SnoozeViewController else { return }
+            if UserDefaultsRepository.debugLog.value {
+                self.writeDebugLog(value: "Display: BG")
+                self.writeDebugLog(value: "Num BG: " + self.bgData.count.description)
+            }
             let entries = self.bgData
-            if entries.count > 0 {
-                let latestEntryi = entries.count - 1
-                let latestBG = entries[latestEntryi].sgv
-                let priorBG = entries[latestEntryi - 1].sgv
-                let deltaBG = latestBG - priorBG as Int
-                let lastBGTime = entries[latestEntryi].date
-                
-                let deltaTime = (TimeInterval(Date().timeIntervalSince1970)-lastBGTime) / 60
-                var userUnit = " mg/dL"
-                if self.mmol {
-                    userUnit = " mmol/L"
-                }
-                
-                // TODO: remove testing feature to color code arrow based on NS vs Dex
-                if isNS {
-                    self.serverText.text = "Nightscout"
-                } else {
-                    self.serverText.text = "Dexcom"
-                }
-                
-                self.BGText.text = bgUnits.toDisplayUnits(String(latestBG))
-                snoozer.BGLabel.text = bgUnits.toDisplayUnits(String(latestBG))
-                self.setBGTextColor()
-                
-                if let directionBG = entries[latestEntryi].direction {
-                    self.DirectionText.text = self.bgDirectionGraphic(directionBG)
-                    snoozer.DirectionLabel.text = self.bgDirectionGraphic(directionBG)
-                    self.latestDirectionString = self.bgDirectionGraphic(directionBG)
-                }
-                else
-                {
-                    self.DirectionText.text = ""
-                    snoozer.DirectionLabel.text = ""
-                    self.latestDirectionString = ""
-                }
-                
-                if deltaBG < 0 {
-                    self.DeltaText.text = bgUnits.toDisplayUnits(String(deltaBG))
-                    snoozer.DeltaLabel.text = bgUnits.toDisplayUnits(String(deltaBG))
-                    self.latestDeltaString = String(deltaBG)
-                }
-                else
-                {
-                    self.DeltaText.text = "+" + bgUnits.toDisplayUnits(String(deltaBG))
-                    snoozer.DeltaLabel.text = "+" + bgUnits.toDisplayUnits(String(deltaBG))
-                    self.latestDeltaString = "+" + String(deltaBG)
-                }
-                self.updateBadge(val: latestBG)
-                
+            if entries.count < 1 { return }
+            
+            self.updateBGGraph()
+            self.updateStats()
+            
+            let latestEntryi = entries.count - 1
+            let latestBG = entries[latestEntryi].sgv
+            let priorBG = entries[latestEntryi - 1].sgv
+            let deltaBG = latestBG - priorBG as Int
+            let lastBGTime = entries[latestEntryi].date
+            
+            let deltaTime = (TimeInterval(Date().timeIntervalSince1970)-lastBGTime) / 60
+            var userUnit = " mg/dL"
+            if self.mmol {
+                userUnit = " mmol/L"
+            }
+            
+            if isNS {
+                self.serverText.text = "Nightscout"
+            } else {
+                self.serverText.text = "Dexcom"
+            }
+            
+            var snoozerBG = ""
+            var snoozerDirection = ""
+            var snoozerDelta = ""
+            
+            self.BGText.text = bgUnits.toDisplayUnits(String(latestBG))
+            snoozerBG = bgUnits.toDisplayUnits(String(latestBG))
+            self.setBGTextColor()
+            
+            if let directionBG = entries[latestEntryi].direction {
+                self.DirectionText.text = self.bgDirectionGraphic(directionBG)
+                snoozerDirection = self.bgDirectionGraphic(directionBG)
+                self.latestDirectionString = self.bgDirectionGraphic(directionBG)
             }
             else
             {
-                
-                return
+                self.DirectionText.text = ""
+                snoozerDirection = ""
+                self.latestDirectionString = ""
             }
-            self.updateBGGraph()
-            self.updateStats()
+            
+            if deltaBG < 0 {
+                self.DeltaText.text = bgUnits.toDisplayUnits(String(deltaBG))
+                snoozerDelta = bgUnits.toDisplayUnits(String(deltaBG))
+                self.latestDeltaString = String(deltaBG)
+            }
+            else
+            {
+                self.DeltaText.text = "+" + bgUnits.toDisplayUnits(String(deltaBG))
+                snoozerDelta = "+" + bgUnits.toDisplayUnits(String(deltaBG))
+                self.latestDeltaString = "+" + String(deltaBG)
+            }
+            self.updateBadge(val: latestBG)
+            
+            // Snoozer Display
+            guard let snoozer = self.tabBarController!.viewControllers?[2] as? SnoozeViewController else { return }
+            snoozer.BGLabel.text = snoozerBG
+            snoozer.DirectionLabel.text = snoozerDirection
+            snoozer.DeltaLabel.text = snoozerDelta
+            
         }
         
     }
@@ -443,8 +446,10 @@ extension MainViewController {
         if let lastPumpRecord = lastDeviceStatus?["pump"] as! [String : AnyObject]? {
             if let lastPumpTime = formatter.date(from: (lastPumpRecord["clock"] as! String))?.timeIntervalSince1970  {
                 if let reservoirData = lastPumpRecord["reservoir"] as? Double {
+                    latestPumpVolume = reservoirData
                     tableData[5].value = String(format:"%.0f", reservoirData) + "U"
                 } else {
+                    latestPumpVolume = 50.0
                     tableData[5].value = "50+U"
                 }
                 
@@ -1203,30 +1208,53 @@ extension MainViewController {
                 if Double( dateTimeStamp - priorDateTimeStamp ) > Double( (priorDuration * 60) + 15 ) {
                     
                     var scheduled = 0.0
+                    var midGap = false
+                    var midGapTime: TimeInterval = 0
+                    var midGapValue: Double = 0
                     // cycle through basal profiles.
                     // TODO figure out how to deal with profile changes that happen mid-gap
-                    for b in 0..<self.basalProfile.count {
-                        let scheduleTimeYesterday = self.basalProfile[b].timeAsSeconds + dateTimeUtils.getTimeIntervalMidnightYesterday()
-                        let scheduleTimeToday = self.basalProfile[b].timeAsSeconds + dateTimeUtils.getTimeIntervalMidnightToday()
-                        // check the prior temp ending to the profile seconds from midnight
-                        if (priorDateTimeStamp + (priorDuration * 60)) >= scheduleTimeYesterday {
-                            scheduled = basalProfile[b].value
-                        }
-                        if (priorDateTimeStamp + (priorDuration * 60)) >= scheduleTimeToday {
-                            scheduled = basalProfile[b].value
+                    for b in 0..<self.basalScheduleData.count {
+                        
+                        if (priorDateTimeStamp + (priorDuration * 60)) >= basalScheduleData[b].date {
+                            scheduled = basalScheduleData[b].basalRate
+                            
+                            // deal with mid-gap scheduled basal change
+                            // don't do it on the last scheudled basal entry
+                            if b < self.basalScheduleData.count - 1 {
+                                if dateTimeStamp > self.basalScheduleData[b + 1].date {
+                                   // midGap = true
+                                    // TODO: finish this to handle mid-gap items without crashing from overlapping entries
+                                    midGapTime = self.basalScheduleData[b + 1].date
+                                    midGapValue = self.basalScheduleData[b + 1].basalRate
+                                }
+                            }
+                            
                         }
                         
-                        // This will iterate through from midnight on and set it for the highest matching one.
                     }
+                    
                     // Make the starting dot at the last ending dot
                     let startDot = basalGraphStruct(basalRate: scheduled, date: Double(priorDateTimeStamp + (priorDuration * 60)))
                     basalData.append(startDot)
-                    
-                    //if UserDefaultsRepository.debugLog.value { self.writeDebugLog(value: "Basal: Scheduled " + String(scheduled) + " " + String(dateTimeStamp)) }
-                    
-                    // Make the ending dot at the new starting dot
-                    let endDot = basalGraphStruct(basalRate: scheduled, date: Double(dateTimeStamp))
-                    basalData.append(endDot)
+                        
+                       
+                    if midGap {
+                        // Make the ending dot at the new scheduled basal
+                        let endDot1 = basalGraphStruct(basalRate: scheduled, date: Double(midGapTime))
+                        basalData.append(endDot1)
+                        // Make the starting dot at the scheduled Time
+                        let startDot2 = basalGraphStruct(basalRate: midGapValue, date: Double(midGapTime))
+                        basalData.append(startDot2)
+                        // Make the ending dot at the new basal value
+                        let endDot2 = basalGraphStruct(basalRate: midGapValue, date: Double(dateTimeStamp))
+                        basalData.append(endDot2)
+                        
+                    } else {
+                        // Make the ending dot at the new starting dot
+                        let endDot = basalGraphStruct(basalRate: scheduled, date: Double(dateTimeStamp))
+                        basalData.append(endDot)
+                    }
+                        
 
                 }
             }
@@ -1337,8 +1365,8 @@ extension MainViewController {
             dateFormatter.timeZone = TimeZone(abbreviation: "UTC")
             let dateString = dateFormatter.date(from: strippedZone)
             let dateTimeStamp = dateString!.timeIntervalSince1970
-            do {
-                let bolus = try currentEntry?["insulin"] as! Double
+
+                guard let bolus = currentEntry?["insulin"] as? Double else { continue }
                 let sgv = findNearestBGbyTime(needle: dateTimeStamp, haystack: bgData, startingIndex: lastFoundIndex)
                 lastFoundIndex = sgv.foundIndex
                 
@@ -1347,11 +1375,6 @@ extension MainViewController {
                     let dot = bolusGraphStruct(value: bolus, date: Double(dateTimeStamp), sgv: Int(sgv.sgv + 20))
                     bolusData.append(dot)
                 }
-            } catch {
-                if UserDefaultsRepository.debugLog.value { self.writeDebugLog(value: "ERROR: Null Bolus") }
-            }
-            
-           
             
         }
         
@@ -1401,7 +1424,7 @@ extension MainViewController {
             lastFoundIndex = sgv.foundIndex
             
             var offset = -50
-            if sgv.sgv < Double(250) {
+            if sgv.sgv < Double(topBG - 100) {
                 let bolusTime = findNearestBolusbyTime(timeWithin: 300, needle: dateTimeStamp, haystack: bolusData, startingIndex: lastFoundBolus)
                 lastFoundBolus = bolusTime.foundIndex
                 
@@ -1688,6 +1711,9 @@ extension MainViewController {
                 duration = (currentEntry?["duration"] as? Double)!
                 duration = duration * 60
             }
+            
+            // Skip overrides that aren't 5 minutes long. This prevents overlapping that causes bars to not display.
+            if duration < 300 { continue }
             
             guard let enteredBy = currentEntry?["enteredBy"] as? String else { continue }
             guard let reason = currentEntry?["reason"] as? String else { continue }
